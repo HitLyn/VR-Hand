@@ -11,7 +11,8 @@
   <license>BSD</license>
 
   <buildtool_depend>catkin</buildtool_depend>
-
+  <build_depend>message_generation</build_depend>
+  <build_depend>std_msgs</build_depend>
   <run_depend>moveit_ros_move_group</run_depend>
   <run_depend>moveit_fake_controller_manager</run_depend>
   <run_depend>moveit_kinematics</run_depend>
@@ -21,8 +22,8 @@
   <run_depend>joint_state_publisher</run_depend>
   <run_depend>joint_state_publisher_gui</run_depend>
   <run_depend>robot_state_publisher</run_depend>
+  <run_depend>message_runtime</run_depend>
   <run_depend>tf2_ros</run_depend>
   <run_depend>xacro</run_depend>
   <run_depend>tams_f329_description</run_depend>
-
 </package>
