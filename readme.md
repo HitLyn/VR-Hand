@@ -1,8 +1,5 @@
-# launch moveit group and rviz and hand tracking visualization
-roslaunch vr_hand visualize_finger_tip.launch
+# launch moveit stuff and unity communication
+roslaunch vr_hand demo.launch
 
-# BioIK service
-rosrun bio_ik_service bio_ik_service
-
-# hand IK solution
-rosrun vr_hand hand_ik.py
+# BioIK service and Hand IK
+roslaunch vr_hand hand_tracking.launch

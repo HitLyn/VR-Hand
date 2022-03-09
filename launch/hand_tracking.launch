@@ -1,0 +1,8 @@
+<launch>
+
+  <!-- visualize and hand IK -->
+  <node name="bio_ik_service" pkg="bio_ik_service" type="bio_ik_service" output="screen" respawn="true" />
+  
+  <node name="hand_dynamic_tracking" pkg="vr_hand" type="dynamic_tracking.py" output="screen" respawn="true" />
+
+</launch>
