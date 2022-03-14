@@ -1,123 +1,114 @@
 #!/usr/bin/env python2
+# -*- coding: utf-8 -*-
+# Author     : Lin Cong
+# E-mail     : cong@informatik.uni-hamburg.de
+# Description: Online finger tip tracking controller
+# Date       : 30/12/2020: 20:23
+# File Name  : tracking
+
+import sys
 import rospy
-import geometry_msgs.msg
+import rospy
+import bio_ik_msgs.srv
+import bio_ik_msgs.msg
+import moveit_msgs.msg
+import moveit_commander
+import trajectory_msgs.msg
+import sensor_msgs.msg
+from vr_hand.msg import HandTipPose, HandFullPose
 from visualization_msgs.msg import Marker, MarkerArray
-from vr_hand.msg import HandTipPose
-import numpy as np
 import matplotlib.pyplot as plt
+
+
+import numpy as np
 from IPython import embed
 
-MARKER_DICT = {0: "thumb_tip", 1: "index_tip", 2: "middle_tip", 3: "ring_tip", 4: "pinky_tip"}
+MOVE_GROUP = "arm_and_hand"
+LH_TIP_MOVEGROUP = ["lh_thtip", "lh_fftip", "lh_mftip", "lh_rftip", "lh_lftip", "lh_wrist"] # ROS movegroup links
+ARM_INITIAL_POSE = [1.57, -1.5707, 2.4127, -0.8727, 1.6709, 3.1416]
+ARM_JOINT_NAME = ["arm_shoulder_pan_joint", "arm_shoulder_lift_joint", "arm_elbow_joint", "arm_wrist_1_joint", "arm_wrist_2_joint", "arm_wrist_3_joint"]
+FINGER_NAME_UNITY= {0: "thumb_tip", 1: "index_tip", 2: "middle_tip", 3: "ring_tip", 4: "pinky_tip", 5: "wrist"} # key points on Unity side
+# FREQUENCY = 50
 COLOR_MAP = plt.get_cmap("rainbow")
-finger_tip_marker_array_pub = None
 
-def finger_tip_read_and_show(HandTipPoseMsg):
-    # get marker array
-    global finger_tip_marker_array_pub
-    marker_array = MarkerArray()
-    for i in range(5):
-        marker = make_marker(HandTipPoseMsg, MARKER_DICT[i])
-        color_depth = (i + 1)/5.
-
-        marker.color.a = 1
-        marker.color.r = COLOR_MAP(color_depth)[0]
-        marker.color.g = COLOR_MAP(color_depth)[1]
-        marker.color.b = COLOR_MAP(color_depth)[2]
-        marker.id = i
-        marker_array.markers.append(marker)
-
-    # publish marker array
-    # embed();exit()
-    finger_tip_marker_array_pub.publish(marker_array)
-
-
-def make_marker(HandTipPoseMsg, finger_tip):
-    marker = Marker()
-    marker.action = marker.ADD
-    marker.header.frame_id = "world"
-    marker.header.stamp = rospy.get_rostime()
-    marker.lifetime = rospy.Duration(5)
-    marker.type = 2
-    marker.scale.x = 0.03
-    marker.scale.y = 0.03
-    marker.scale.z = 0.03
-
-    # embed()
-    marker.pose = getattr(HandTipPoseMsg, finger_tip)
-
-    return marker
-
-def make_target_marker(HandTipPoseMsg, finger_tip):
-    marker = Marker()
-    marker.action = marker.ADD
-    marker.header.frame_id = "world"
-    marker.header.stamp = rospy.get_rostime()
-    marker.lifetime = rospy.Duration(5)
-    marker.type = 2
-    marker.scale.x = 0.03
-    marker.scale.y = 0.03
-    marker.scale.z = 0.03
-
-    # embed()
-    marker.pose.orientation = getattr(HandTipPoseMsg, finger_tip).orientation
-    marker.pose.position.x = getattr(HandTipPoseMsg, finger_tip).position.x + 1.3
-    marker.pose.position.y = getattr(HandTipPoseMsg, finger_tip).position.y - 1.4
-    marker.pose.position.z = getattr(HandTipPoseMsg, finger_tip).position.z - 0.7
-
-    return marker
-
-class FingerTipVision():
+class VisualizeTip():
+    """
+        Hand IK solution with velocity limitations,
+        Given target key points, return target joints value
+        for the next time step, according to the current robot state.
+        Used as the solution in the online controller.
+        Provide the joint targets for only next time step.
+    """
     def __init__(self):
-        rospy.init_node('finger_tip_visualize')
-        self.finger_tip_marker_array_pub = rospy.Publisher('finger_tip_marker_array', MarkerArray, queue_size = 10)
-        self.finger_target_marker_array_pub = rospy.Publisher('finger_tip_target_marker_array', MarkerArray, queue_size = 10)
-        self.sub = rospy.Subscriber("finger_tip_pose", HandTipPose, self.finger_tip_read_and_show)
+        self.target_mapping_links = LH_TIP_MOVEGROUP
+        self.finger_tip_pose = list()
+        # finger tip visualization
+        self.finger_tip_marker_array_pub = rospy.Publisher('hand_marker_array', MarkerArray, queue_size = 1)
+        # Previous Request
+        self.sub = rospy.Subscriber("hand_pose", HandFullPose, self.visualize)
+
         rospy.spin()
 
 
-    def finger_tip_read_and_show(self, HandTipPoseMsg):
-        # get marker array
+    @staticmethod
+    def display_trajectory(response):
+        display = moveit_msgs.msg.DisplayTrajectory()
+        display.trajectory_start = response.solution
+        display.trajectory.append(moveit_msgs.msg.RobotTrajectory())
+        display.trajectory[0].joint_trajectory.points.append(trajectory_msgs.msg.JointTrajectoryPoint())
+        display.trajectory[0].joint_trajectory.points[-1].time_from_start.secs = 0
+        display.trajectory[0].joint_trajectory.points.append(trajectory_msgs.msg.JointTrajectoryPoint())
+        display.trajectory[0].joint_trajectory.points[-1].time_from_start.secs = 1
+        display_publisher = rospy.Publisher("/move_group/display_planned_path", moveit_msgs.msg.DisplayTrajectory,
+                                            latch=True, queue_size=10)
+        display_publisher.publish(display)
+
+    def visualize(self, HandFullPose):
+        # visualization
         marker_array = MarkerArray()
-        target_marker_array = MarkerArray()
-        for i in range(5):
-            marker = make_marker(HandTipPoseMsg, MARKER_DICT[i])
-            target_marker = make_target_marker(HandTipPoseMsg, MARKER_DICT[i])
-
-            color_depth = (i + 1)/5.
-
-            # real hand marker
+        for i in range(len(LH_TIP_MOVEGROUP)):
+            # target marker visualization
+            marker = self.make_marker(HandFullPose, FINGER_NAME_UNITY[i])
+            color_depth = (i + 1)/float(len(LH_TIP_MOVEGROUP))
             marker.color.a = 1
             marker.color.r = COLOR_MAP(color_depth)[0]
             marker.color.g = COLOR_MAP(color_depth)[1]
             marker.color.b = COLOR_MAP(color_depth)[2]
             marker.id = i
             marker_array.markers.append(marker)
-            # target marker
-            target_marker.color.a = 1
-            target_marker.color.r = COLOR_MAP(color_depth)[0]
-            target_marker.color.g = COLOR_MAP(color_depth)[1]
-            target_marker.color.b = COLOR_MAP(color_depth)[2]
-            target_marker.id = i
-            target_marker_array.markers.append(target_marker)
 
         self.finger_tip_marker_array_pub.publish(marker_array)
-        self.finger_target_marker_array_pub.publish(target_marker_array)
 
 
-def main():
-    # global finger_tip_marker_array_pub
-    # rospy.init_node('finger_tip_visualize')
-    # finger_tip_marker_array_pub = rospy.Publisher('finger_tip_marker_array', MarkerArray, queue_size = 10)
-    # rospy.Subscriber("finger_tip_pose", HandTipPose, finger_tip_read_and_show)
-    # rospy.spin()
+    @staticmethod
+    def make_marker(HandFullPoseMsg, finger_tip):
+        marker = Marker()
+        marker.action = marker.ADD
+        marker.header.frame_id = "world"
+        marker.header.stamp = rospy.get_rostime()
+        marker.lifetime = rospy.Duration(5)
+        marker.type = 2
+        marker.scale.x = 0.03
+        marker.scale.y = 0.03
+        marker.scale.z = 0.03
+        marker.pose = getattr(HandFullPoseMsg, finger_tip)
 
-    finger_tip_vision = FingerTipVision()
+        return marker
 
 
-    # BioIK
+
+
+
+
+def tracking():
+    # ros node and service
+    # controll parameters initialization and HandIK
+    rospy.init_node("finger_tip_visualization")
+    v = VisualizeTip()
+
 
 
 
 
 if __name__ == '__main__':
-    main()
+    tracking()

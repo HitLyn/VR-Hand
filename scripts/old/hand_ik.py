@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Author     : Hongzhuo Liang 
+# Author     : Hongzhuo Liang
 # E-mail     : liang@informatik.uni-hamburg.de
-# Description: 
+# Description:
 # Date       : 30/12/2020: 20:23
 # File Name  : bioik
 from __future__ import print_function
@@ -10,7 +10,7 @@ import rospy
 import bio_ik_msgs.srv
 import bio_ik_msgs.msg
 import moveit_msgs.msg
-from vr_hand.msg import HandTipPose
+from vr_hand.msg import HandTipPose, HandFullPose
 import trajectory_msgs.msg
 from visualization_msgs.msg import Marker, MarkerArray
 import numpy as np
@@ -37,8 +37,11 @@ key_points[17, 18, 19, 20]: little finger
 *            [0000000000000000000]        *
 *******************************************
 """
-LH_TIP_MOVEGROUP = ["lh_thtip", "lh_fftip", "lh_mftip", "lh_rftip", "lh_lftip"]
-FINGER_NAME_UNITY= {0: "thumb_tip", 1: "index_tip", 2: "middle_tip", 3: "ring_tip", 4: "pinky_tip"}
+LH_TIP_MOVEGROUP = ["lh_thtip", "lh_fftip", "lh_mftip", "lh_rftip", "lh_lftip", "lh_wrist"] # ROS movegroup links
+ARM_POSE = [1.57, -1.5707, 2.4127, -0.8727, 1.6709, 3.1416]
+ARM_JOINT_NAME = ["arm_shoulder_pan_joint", "arm_shoulder_lift_joint", "arm_elbow_joint", "arm_wrist_1_joint", "arm_wrist_2_joint", "arm_wrist_3_joint"]
+FINGER_NAME_UNITY= {0: "thumb_tip", 1: "index_tip", 2: "middle_tip", 3: "ring_tip", 4: "pinky_tip", 5: "wrist"} # key points on Unity side
+FREQUENCY = 50
 
 
 
@@ -49,11 +52,12 @@ class BioIK:
         rospy.wait_for_service("/bio_ik/get_bio_ik")
         self.get_bio_ik = rospy.ServiceProxy("/bio_ik/get_bio_ik", bio_ik_msgs.srv.GetIK)
         self.map_position_links = LH_TIP_MOVEGROUP
-        self.map_position_weights = [1, 1, 1, 1, 1]
+        self.map_position_weights = [1, 1, 1, 1, 1, 1]
+        self.joint_position_weights = [0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
         # self.map_direction_weights = [0.1, 0.1, 0.1, 0.1, 0.1] * 3
         self.ik_result = []
         # subscribe to finger tip points
-        self.sub = rospy.Subscriber("finger_tip_pose", HandTipPose, self.call_ik)
+        self.sub = rospy.Subscriber("hand_pose", HandFullPose, self.call_ik)
         rospy.spin()
 
 
@@ -69,32 +73,42 @@ class BioIK:
             marker_id += 1
         pub.publish(marker_array)
 
-    def call_ik(self, HandTipPoseMsg):
+    def call_ik(self, HandFullPoseMsg):
         # read finger tip positions and update self.key_points
         # clear previous data
-        
+        time_1 = rospy.Time.now()
         if len(self.finger_tip_pose) > 0:
             del self.finger_tip_pose[:]
         else:
-            for i in range(5):
-                finger_pose = getattr(HandTipPoseMsg, FINGER_NAME_UNITY[i])
+            for i in range(6):
+                finger_pose = getattr(HandFullPoseMsg, FINGER_NAME_UNITY[i])
                 self.finger_tip_pose.append(finger_pose)
-            
+
             # IK solution
+
             request = bio_ik_msgs.msg.IKRequest()
             request.group_name = "arm_and_hand"
             request.timeout.secs = 0.2
             request.approximate = True
             # request.fixed_joints = ["rh_WRJ2", "rh_WRJ1"]
             for i, link_name in enumerate(self.map_position_links):
-                goal = bio_ik_msgs.msg.PositionGoal()
-                goal.link_name = link_name
-                goal.position = self.finger_tip_pose[i].position
-                # goal.position.x = self.finger_tip_pose[i].position
-                # goal.position.y = self.key_point[1]
-                # goal.position.z = self.key_point[2]
-                goal.weight = self.map_position_weights[i]
-                request.position_goals.append(goal)
+                # position_goal
+                position_goal = bio_ik_msgs.msg.PositionGoal()
+                position_goal.link_name = link_name
+                position_goal.position = self.finger_tip_pose[i].position
+                position_goal.weight = self.map_position_weights[i]
+                request.position_goals.append(position_goal)
+            for i, variable_position in enumerate(ARM_JOINT_NAME):
+                # position_goal
+                joint_goal = bio_ik_msgs.msg.JointVariableGoal()
+                joint_goal.variable_name = ARM_JOINT_NAME[i]
+                joint_goal.variable_position = ARM_POSE[i]
+                joint_goal.weight = self.joint_position_weights[i]
+                request.joint_variable_goals.append(joint_goal)
+
+
+            minimal_displacement_goal = bio_ik_msgs.msg.MinimalDisplacementGoal(1.0, True)
+            request.minimal_displacement_goals.append(minimal_displacement_goal)
             # directions = []
             # for i in range(5):
             #     directions.append(key_points[RH_MIDDLE_ID[i]] - key_points[RH_PROXIMAL_ID[i]])
@@ -109,6 +123,8 @@ class BioIK:
             #     request.direction_goals.append(goal)
             request.avoid_collisions = True
             response = self.get_bio_ik(request).ik_response
+            time_2 = rospy.Time.now()
+            print((time_2-time_1).to_sec())
             # i = 0
 
             if VIS_IK:
@@ -119,10 +135,10 @@ class BioIK:
             joints_new = np.copy(joints)
             self.ik_result.append(joints_new)
             # plan and execute
-            
 
 
-                
+
+
 
     # @staticmethod
     # def make_marker(marker_array, pose, scale, color, lifetime, frame_id):
