@@ -43,15 +43,21 @@ else:
 
 
 def plan(move_group, target_joint_angles, start_joint_angles):
+    # current robot state
     current_joint_state = JointState()
     current_joint_state.name = joint_names
     current_joint_state.position = start_joint_angles
-
     moveit_robot_state = RobotState()
     moveit_robot_state.joint_state = current_joint_state
     move_group.set_start_state(moveit_robot_state)
 
-    move_group.set_joint_value_target(target_joint_angles) # JointStateMsg
+    # target joint state
+    target_joint_state = JointState()
+    target_joint_state.name = joint_names
+    target_joint_state.position = target_joint_angles
+    move_group.set_joint_value_target(target_joint_state) # JointStateMsg
+
+    # plan
     plan = move_group.plan()
 
     if not plan:
@@ -64,10 +70,17 @@ def plan(move_group, target_joint_angles, start_joint_angles):
     return planCompat(plan)
 
 def plan_trajectory(req):
+    response = MoverServiceResponse()
+    group_name = "arm"
+    move_group = moveit_commander.MoveGroupCommander(group_name)
 
+    current_robot_joint_configuration = req.joints_input.joints
+    target_robot_joint_configuration = req.joints_target.joints
 
+    robot_trajectory = plan(move_group, target_robot_joint_configuration, current_robot_joint_configuration)
+    print('Successfully planned to target joint state')
 
-    response = plan()
+    response.trajectory = robot_trajectory
 
     return response
 
