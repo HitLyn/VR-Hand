@@ -1,3 +1,4 @@
+## Control without Unity simulation robot
 # launch moveit stuff and unity communication
 roslaunch vr_hand demo.launch
 
@@ -9,3 +10,5 @@ rosrun bio_ik_service bio_ik_service
 
 # HandIK
 rosrun vr_hand dynamic_tracking.py
+
+## Control the simulation robot in Unity

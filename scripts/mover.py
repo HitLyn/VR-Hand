@@ -21,6 +21,7 @@ import geometry_msgs.msg
 from geometry_msgs.msg import Quaternion, Pose
 from std_msgs.msg import String
 from moveit_commander.conversions import pose_to_list
+from IPython import embed
 
 from vr_hand.srv import MoverService, MoverServiceRequest, MoverServiceResponse
 
@@ -40,6 +41,16 @@ if sys.version_info >= (3, 0):
 else:
     def planCompat(plan):
         return plan
+
+
+def display_trajectory(robot, response):
+    # embed();exit()
+    display = moveit_msgs.msg.DisplayTrajectory()
+    display.trajectory_start = robot.get_current_state()
+    display.trajectory.append(response.trajectory)
+    display_publisher = rospy.Publisher("/move_group/display_planned_path", moveit_msgs.msg.DisplayTrajectory,
+                                        latch=True, queue_size=10)
+    display_publisher.publish(display)
 
 
 def plan(move_group, target_joint_angles, start_joint_angles):
@@ -73,6 +84,7 @@ def plan_trajectory(req):
     response = MoverServiceResponse()
     group_name = "arm"
     move_group = moveit_commander.MoveGroupCommander(group_name)
+    robot = moveit_commander.RobotCommander()
 
     current_robot_joint_configuration = req.joints_input.joints
     target_robot_joint_configuration = req.joints_target.joints
@@ -81,6 +93,9 @@ def plan_trajectory(req):
     print('Successfully planned to target joint state')
 
     response.trajectory = robot_trajectory
+
+    # visualization trajectory
+    display_trajectory(robot, response)
 
     return response
 

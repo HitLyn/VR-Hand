@@ -17,6 +17,7 @@ add_message_files(FILES
     HandTipPose.msg
     HandFullPose.msg
     ArmJoints.msg
+    JointPositions.msg
 )
 
 add_service_files(FILES
