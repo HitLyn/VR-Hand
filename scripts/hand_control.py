@@ -93,7 +93,7 @@ class HandIK():
         # publish joints target
         target_joint_state = response.solution.joint_state
         self.joint_state_publisher_unity.publish(target_joint_state)
-        self.joint_state_publisher_rviz.publish(target_joint_state)
+        # self.joint_state_publisher_rviz.publish(target_joint_state)
 
 
     def get_joints_target(self):
