@@ -18,6 +18,7 @@ import sensor_msgs.msg
 from vr_hand.msg import HandTipPose, HandFullPose
 from visualization_msgs.msg import Marker, MarkerArray
 import matplotlib.pyplot as plt
+from pyquaternion import Quaternion
 
 
 import numpy as np
@@ -50,7 +51,7 @@ class HandIK():
         self.joint_state_publisher_rviz = rospy.Publisher('/move_group/fake_controller_joint_states', sensor_msgs.msg.JointState, queue_size = 1)
 
         self.target_mapping_links = LH_TIP_MOVEGROUP
-        self.mapping_weights = 1.*np.array([1., 1., 1., 1., 1., 1.])
+        self.mapping_weights = 1.*np.array([1., 1., 0.8, 0.8, 0.5, 0.4])
         self.joint_position_weights = 0.9*np.array([1, 1, 1, 1, 1, 1])
         self.joints_target = None
         self.finger_tip_pose = list()
@@ -76,18 +77,40 @@ class HandIK():
         request.approximate = True
         request.robot_state = self.robot.get_current_state()
 
-        for i, link_name in enumerate(self.target_mapping_links):
+        # Only position goal
+        # for i, link_name in enumerate(self.target_mapping_links):
+        #
+        #     # position_goal
+            # position_goal = bio_ik_msgs.msg.PositionGoal()
+            # position_goal.link_name = link_name
+            # position_goal.position = self.finger_tip_pose[i].position
+            # position_goal.weight = self.mapping_weights[i]
+            # request.position_goals.append(position_goal)
 
+        # Pose goal
+        for i, link_name in enumerate(self.target_mapping_links):
+            if i == 5:
+                position_goal = bio_ik_msgs.msg.PositionGoal()
+                position_goal.link_name = link_name
+                position_goal.position = self.finger_tip_pose[i].position
+                position_goal.weight = self.mapping_weights[i]
+                request.position_goals.append(position_goal)
+            else:
             # position_goal
-            position_goal = bio_ik_msgs.msg.PositionGoal()
-            position_goal.link_name = link_name
-            position_goal.position = self.finger_tip_pose[i].position
-            position_goal.weight = self.mapping_weights[i]
-            request.position_goals.append(position_goal)
+                pose_goal = bio_ik_msgs.msg.PoseGoal()
+                pose_goal.link_name = link_name
+                pose_goal.pose.position = self.finger_tip_pose[i].position
+                # if i == 1:
+                #     pose_goal.pose.orientation = self.rotate(self.finger_tip_pose[i].orientation)
+                # else:
+                #     pose_goal.pose.orientation = self.finger_tip_pose[i].orientation
+                pose_goal.pose.orientation = self.finger_tip_pose[i].orientation
+                pose_goal.weight = self.mapping_weights[i]
+                request.pose_goals.append(pose_goal)
 
 
         request.minimal_displacement_goals.append(bio_ik_msgs.msg.MinimalDisplacementGoal(1.0, False))
-        # request.avoid_collisions = True
+        request.avoid_collisions = True
         response = self.get_bio_ik(request).ik_response
 
         # publish joints target
@@ -99,6 +122,14 @@ class HandIK():
     def get_joints_target(self):
 
         return self.joints_target
+
+    def rotate(self, orientation):
+        """rotate -90 degrees around the x axix"""
+        q = Quaternion(axis=[1, 0, 0], angle=1.57)
+        q_r = q.rotate(Quaternion(w = orientation.w, x = orientation.x, y = orientation.y, z = orientation.z))
+        return q_r
+
+
 
 
     @staticmethod

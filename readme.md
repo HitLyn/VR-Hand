@@ -5,7 +5,8 @@ roslaunch vr_hand demo.launch
 # visualize hand key points
 rosrun vr_hand finger_tip_visualize.py
 
-# HandIK
-rosrun vr_hand dynamic_tracking.py
+<!-- # HandIK
+rosrun vr_hand dynamic_tracking.py -->
 
 ## Control the simulation robot in Unity
+rosrun vr_hand hand_control.py

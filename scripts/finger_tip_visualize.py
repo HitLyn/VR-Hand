@@ -18,6 +18,7 @@ import sensor_msgs.msg
 from vr_hand.msg import HandTipPose, HandFullPose
 from visualization_msgs.msg import Marker, MarkerArray
 import matplotlib.pyplot as plt
+from pyquaternion import Quaternion
 
 
 import numpy as np
@@ -48,6 +49,14 @@ class VisualizeTip():
         self.sub = rospy.Subscriber("hand_pose", HandFullPose, self.visualize)
 
         rospy.spin()
+
+    def rotate(self, orientation):
+        """rotate +90 degrees around the x axix"""
+        q = Quaternion(axis=[0, 0, 1], angle=-1.57)
+        q_r = q.rotate(Quaternion(w = orientation.w, x = orientation.x, y = orientation.y, z = orientation.z))
+        # qr = Quaternion(axis=[1, 0, 0], angle=1.5707)
+        # embed();exit()
+        return q_r
 
 
     @staticmethod
@@ -80,18 +89,20 @@ class VisualizeTip():
         self.finger_tip_marker_array_pub.publish(marker_array)
 
 
-    @staticmethod
-    def make_marker(HandFullPoseMsg, finger_tip):
+
+    def make_marker(self, HandFullPoseMsg, finger_tip):
         marker = Marker()
         marker.action = marker.ADD
         marker.header.frame_id = "world"
         marker.header.stamp = rospy.get_rostime()
         marker.lifetime = rospy.Duration(5)
-        marker.type = 2
-        marker.scale.x = 0.03
-        marker.scale.y = 0.03
-        marker.scale.z = 0.03
-        marker.pose = getattr(HandFullPoseMsg, finger_tip)
+        marker.type = 0
+        marker.scale.x = 0.05
+        marker.scale.y = 0.01
+        marker.scale.z = 0.05
+        marker.pose.position = getattr(HandFullPoseMsg, finger_tip).position
+        # marker.pose.orientation = self.rotate(getattr(HandFullPoseMsg, finger_tip).orientation)
+        marker.pose.orientation = getattr(HandFullPoseMsg, finger_tip).orientation
 
         return marker
 
