@@ -35,5 +35,5 @@ On Windows:
 1. Link the Oculus Quest2 to Windows, choose the `Oculus Link` mode in the Oculus.
 2. Start Unity, load the `VR-Shadow-Teleoperation` package
 3. Install [Unity-Robotics-Hub](https://github.com/Unity-Technologies/Unity-Robotics-Hub)
-4. Follow the [instructions] (https://github.com/Unity-Technologies/Unity-Robotics-Hub/blob/main/tutorials/pick_and_place/2_ros_tcp.md) and generate ROS message `JointPositionsMsg` in Unity  
+4. Follow the [instructions](https://github.com/Unity-Technologies/Unity-Robotics-Hub/blob/main/tutorials/pick_and_place/2_ros_tcp.md) and generate ROS message `JointPositionsMsg` in Unity  
 5. Open the `SampleScene` and click `play`
